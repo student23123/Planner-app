@@ -1,0 +1,85 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 27.0.12077973
+      BUILD_TOOLS: 35.0.0
+      # Personal sideload key. Kept here so every build is signed the same way
+      # and new APKs install over old ones without losing data.
+      KS_PASS: sONbA7-VM7aGK-OdS7votbAO
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK and build tools
+        run: |
+          sdkmanager --install "ndk;${NDK_VERSION}" "build-tools;${BUILD_TOOLS}" "platforms;android-35"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm packages
+        run: npm ci
+
+      - name: Set version from build number
+        run: |
+          node -e "const f='src-tauri/tauri.conf.json';const c=JSON.parse(require('fs').readFileSync(f));c.version='0.1.${{ github.run_number }}';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
+
+      - name: Generate Android project
+        run: |
+          npx tauri android init --ci
+          npx tauri icon app-icon.png
+
+      - name: Build APK
+        run: npx tauri android build --apk --target aarch64
+
+      - name: Sign APK
+        run: |
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -n 1)
+          echo "Built: $APK"
+          BT="$ANDROID_HOME/build-tools/${BUILD_TOOLS}"
+          "$BT/zipalign" -f -p 4 "$APK" aligned.apk
+          "$BT/apksigner" sign --ks android/planner.jks --ks-key-alias planner \
+            --ks-pass "pass:${KS_PASS}" --key-pass "pass:${KS_PASS}" \
+            --out Planner.apk aligned.apk
+          "$BT/apksigner" verify Planner.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Planner ${{ github.run_number }}
+          body: 폰에서 아래 Planner.apk를 눌러 받은 뒤 설치하세요.
+          files: Planner.apk
+          make_latest: true
