@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       NDK_VERSION: 27.0.12077973
       BUILD_TOOLS: 35.0.0
@@ -22,23 +22,24 @@ jobs:
       # and new APKs install over old ones without losing data.
       KS_PASS: sONbA7-VM7aGK-OdS7votbAO
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
       - name: Install Android NDK and build tools
         run: |
-          sdkmanager --install "ndk;${NDK_VERSION}" "build-tools;${BUILD_TOOLS}" "platforms;android-35"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "ndk;${NDK_VERSION}" "build-tools;${BUILD_TOOLS}" "platforms;android-35" "platform-tools"
           echo "NDK_HOME=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
