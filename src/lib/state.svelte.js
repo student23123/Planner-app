@@ -1,19 +1,29 @@
-import { ymd, uid, addDays, PALETTE } from './util.js';
+import { uid, addDays, logicalDate, PALETTE, SUBJECT_COLORS } from './util.js';
 
 export const FOCUS = 25 * 60 * 1000;
 export const BREAK = 5 * 60 * 1000;
+
+const DEFAULT_SUBJECTS = ['기업법', '세법', '재무회계', '원가회계'].map((name, i) => ({
+  id: `s${i}`,
+  name,
+  color: SUBJECT_COLORS[i],
+}));
 
 export const app = $state({
   days: {},
   events: [],
   ddays: [],
   stamps: [],
+  subjects: DEFAULT_SUBJECTS,
+  habits: [],
+  habitLog: {},
+  prefs: { lastSubject: null },
   timer: { phase: 'focus', status: 'idle', endAt: 0, remaining: FOCUS, focusMode: false },
 });
 
 export const meta = $state({ ready: false, loadError: false });
 
-export const clock = $state({ now: Date.now(), today: ymd(new Date()) });
+export const clock = $state({ now: Date.now(), today: logicalDate(Date.now()) });
 
 const EMPTY = Object.freeze({ todos: [], focus: 0, stamp: null });
 
@@ -40,7 +50,7 @@ export function ensureDay(date) {
       if (prev) {
         for (const t of app.days[prev].todos) {
           if (t.carry && (t.mark === 'x' || t.mark === 't')) {
-            todos.push({ id: uid(), text: t.text, mark: null, carry: false, from: t.id });
+            todos.push({ id: uid(), text: t.text, subject: t.subject ?? null, mark: null, carry: false, from: t.id });
           }
         }
       }
@@ -50,10 +60,29 @@ export function ensureDay(date) {
   return app.days[date];
 }
 
+/* ---------- subjects ---------- */
+
+export function subjectOf(id) {
+  return id ? app.subjects.find((s) => s.id === id) ?? null : null;
+}
+
+export function addSubject(name) {
+  const used = new Set(app.subjects.map((s) => s.color));
+  const color = SUBJECT_COLORS.find((c) => !used.has(c)) ?? SUBJECT_COLORS[app.subjects.length % SUBJECT_COLORS.length];
+  const s = { id: uid(), name, color };
+  app.subjects.push(s);
+  return s;
+}
+
+export function removeSubject(id) {
+  app.subjects = app.subjects.filter((s) => s.id !== id);
+  if (app.prefs.lastSubject === id) app.prefs.lastSubject = null;
+}
+
 /* ---------- todos ---------- */
 
-export function addTodo(text) {
-  ensureDay(clock.today).todos.push({ id: uid(), text, mark: null, carry: false });
+export function addTodo(text, subject) {
+  ensureDay(clock.today).todos.push({ id: uid(), text, subject: subject ?? null, mark: null, carry: false });
 }
 
 function unlinkCarry(date, todo) {
@@ -72,12 +101,36 @@ export function removeTodo(date, id) {
   d.todos.splice(i, 1);
 }
 
-export function setMark(date, todo, mark) {
-  todo.mark = todo.mark === mark ? null : mark;
-  if (todo.carry && todo.mark !== 'x' && todo.mark !== 't') {
+function applyMark(date, todo, mark) {
+  todo.mark = mark;
+  if (todo.carry && mark !== 'x' && mark !== 't') {
     todo.carry = false;
     unlinkCarry(date, todo);
   }
+}
+
+export function setMark(date, todo, mark) {
+  applyMark(date, todo, todo.mark === mark ? null : mark);
+}
+
+export function updateTodo(date, id, { text, subject, mark }) {
+  const todo = app.days[date]?.todos.find((t) => t.id === id);
+  if (!todo) return;
+  todo.text = text;
+  todo.subject = subject ?? null;
+  applyMark(date, todo, mark ?? null);
+}
+
+/** moves a todo so it ends up just before the row that was at index `target` (target = length → end) */
+export function moveTodo(date, id, target) {
+  const todos = app.days[date]?.todos;
+  if (!todos) return;
+  const from = todos.findIndex((t) => t.id === id);
+  if (from < 0) return;
+  const to = target > from ? target - 1 : target;
+  if (to === from) return;
+  const [t] = todos.splice(from, 1);
+  todos.splice(to, 0, t);
 }
 
 export function setCarry(date, todo, value) {
@@ -86,7 +139,7 @@ export function setCarry(date, todo, value) {
   if (!next) return;
   if (value) {
     if (!next.todos.some((x) => x.from === todo.id)) {
-      next.todos.push({ id: uid(), text: todo.text, mark: null, carry: false, from: todo.id });
+      next.todos.push({ id: uid(), text: todo.text, subject: todo.subject ?? null, mark: null, carry: false, from: todo.id });
     }
   } else {
     unlinkCarry(date, todo);
@@ -120,6 +173,26 @@ export function removeEvent(id) {
   app.events = app.events.filter((e) => e.id !== id);
 }
 
+/* ---------- habits ---------- */
+
+export function addHabit(name) {
+  app.habits.push({ id: uid(), name });
+}
+
+export function removeHabit(id) {
+  app.habits = app.habits.filter((h) => h.id !== id);
+}
+
+export function habitDone(date, id) {
+  return !!app.habitLog[date]?.[id];
+}
+
+export function toggleHabit(date, id) {
+  if (!app.habitLog[date]) app.habitLog[date] = {};
+  if (app.habitLog[date][id]) delete app.habitLog[date][id];
+  else app.habitLog[date][id] = true;
+}
+
 /* ---------- d-day ---------- */
 
 export function addDday({ title, date, photo }) {
@@ -130,6 +203,14 @@ export function addDday({ title, date, photo }) {
     photo: photo || null,
     color: Math.floor(Math.random() * PALETTE.length),
   });
+}
+
+export function updateDday(id, { title, date, photo }) {
+  const d = app.ddays.find((x) => x.id === id);
+  if (!d) return;
+  d.title = title;
+  d.date = date;
+  d.photo = photo || null;
 }
 
 export function removeDday(id) {

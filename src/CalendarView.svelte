@@ -1,9 +1,8 @@
 <script>
   import Icon from './Icon.svelte';
   import Modal from './Modal.svelte';
-  import { app, clock, addEvent, removeEvent, addDday, removeDday } from './lib/state.svelte.js';
-  import { ymd, parse, addDays, diffDays, label, WD, hoursOf, PALETTE } from './lib/util.js';
-  import { readImage } from './lib/image.js';
+  import { app, clock, addEvent, removeEvent, subjectOf, updateTodo, removeTodo } from './lib/state.svelte.js';
+  import { ymd, parse, label, WD, hoursOf, fmtMinutes } from './lib/util.js';
 
   const todayDate = parse(clock.today);
   let viewY = $state(todayDate.getFullYear());
@@ -20,30 +19,46 @@
   });
 
   let eventDates = $derived(new Set(app.events.map((e) => e.date)));
-
   let selDay = $derived(app.days[selected]);
   let selEvents = $derived(
     app.events.filter((e) => e.date === selected).sort((a, b) => (a.time || '99').localeCompare(b.time || '99')),
   );
 
-  let week = $derived.by(() => {
-    const startD = addDays(selected, -parse(selected).getDay());
-    return Array.from({ length: 7 }, (_, i) => addDays(startD, i));
+  const score = (t) => (t.mark === 'o' ? 1 : t.mark === 't' ? 0.5 : 0);
+
+  let stats = $derived.by(() => {
+    const dates = cells.filter((d) => d && d <= clock.today);
+    if (dates.length === 0) return null;
+    let focus = 0;
+    const ratios = [];
+    const bySubj = new Map();
+    let subjTotal = 0;
+    for (const d of dates) {
+      const day = app.days[d];
+      if (!day) continue;
+      focus += day.focus;
+      if (day.todos.length) {
+        ratios.push(day.todos.reduce((s, t) => s + score(t), 0) / day.todos.length);
+      }
+      for (const t of day.todos) {
+        const subj = subjectOf(t.subject);
+        const sc = score(t);
+        if (!subj || sc === 0) continue;
+        bySubj.set(subj.id, (bySubj.get(subj.id) ?? 0) + sc);
+        subjTotal += sc;
+      }
+    }
+    const totalMin = focus * 30;
+    const shares = [...bySubj.entries()]
+      .map(([id, v]) => ({ subj: subjectOf(id), pct: (v / subjTotal) * 100 }))
+      .sort((a, b) => b.pct - a.pct);
+    return {
+      totalMin,
+      avgMin: totalMin / dates.length,
+      avgRatio: ratios.length ? Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100) : null,
+      shares,
+    };
   });
-
-  let weekTotalMin = $derived(week.reduce((sum, d) => sum + (app.days[d]?.focus ?? 0) * 30, 0));
-
-  function ratio(d) {
-    const day = app.days[d];
-    if (!day || day.todos.length === 0) return '-';
-    const score = day.todos.reduce((s, t) => s + (t.mark === 'o' ? 1 : t.mark === 't' ? 0.5 : 0), 0);
-    return `${Math.round((score / day.todos.length) * 100)}%`;
-  }
-
-  function hoursCell(d) {
-    if (d > clock.today) return '-';
-    return hoursOf(app.days[d]?.focus ?? 0);
-  }
 
   function move(n) {
     const d = new Date(viewY, viewM + n, 1);
@@ -84,79 +99,37 @@
     } else confirmEv = id;
   }
 
-  /* ----- d-day ----- */
-  let ddOpen = $state(false);
-  let ddTitle = $state('');
-  let ddDate = $state('');
-  let ddPhoto = $state(null);
-  let ddError = $state('');
-  let confirmDd = $state(null);
-  let ddFile;
-  let scroller;
-  let slide = $state(0);
+  /* ----- edit todo ----- */
+  let edOpen = $state(false);
+  let edId = $state(null);
+  let edText = $state('');
+  let edSubject = $state(null);
+  let edMark = $state(null);
+  let edConfirm = $state(false);
 
-  function dLabel(date) {
-    const n = diffDays(date, clock.today);
-    if (n > 0) return `D-${n}`;
-    if (n === 0) return 'D-DAY';
-    return `D+${-n}`;
+  function openEdit(t) {
+    edId = t.id;
+    edText = t.text;
+    edSubject = subjectOf(t.subject)?.id ?? null;
+    edMark = t.mark;
+    edConfirm = false;
+    edOpen = true;
   }
 
-  function dSub(date) {
-    const n = diffDays(date, clock.today);
-    return n < 0 ? `${label(date)} - ${-n}일째` : label(date);
-  }
-
-  function bannerStyle(dd) {
-    const shade = 'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.62))';
-    if (dd.photo) return `background-image:${shade},url("${dd.photo}");background-size:cover;background-position:center`;
-    const [a, b] = PALETTE[dd.color % PALETTE.length];
-    return `background-image:${shade},linear-gradient(135deg,${a},${b})`;
-  }
-
-  function swatch(dd) {
-    if (dd.photo) return `background-image:url("${dd.photo}");background-size:cover;background-position:center`;
-    const [a, b] = PALETTE[dd.color % PALETTE.length];
-    return `background-image:linear-gradient(135deg,${a},${b})`;
-  }
-
-  function onScroll() {
-    if (!scroller) return;
-    slide = Math.round(scroller.scrollLeft / scroller.clientWidth);
-  }
-
-  function openDday() {
-    ddTitle = '';
-    ddDate = clock.today;
-    ddPhoto = null;
-    ddError = '';
-    ddOpen = true;
-  }
-
-  async function onDdFile(e) {
-    const f = e.currentTarget.files?.[0];
-    e.currentTarget.value = '';
-    if (!f) return;
-    try {
-      ddPhoto = (await readImage(f, 1000, true)).src;
-      ddError = '';
-    } catch {
-      ddError = '사진을 불러오지 못했어요.';
-    }
-  }
-
-  function saveDday(e) {
+  function saveEdit(e) {
     e.preventDefault();
-    if (!ddTitle.trim() || !ddDate) return;
-    addDday({ title: ddTitle.trim(), date: ddDate, photo: ddPhoto });
-    ddOpen = false;
+    if (!edText.trim()) return;
+    updateTodo(selected, edId, { text: edText.trim(), subject: edSubject, mark: edMark });
+    edOpen = false;
   }
 
-  function delDday(id) {
-    if (confirmDd === id) {
-      removeDday(id);
-      confirmDd = null;
-    } else confirmDd = id;
+  function delEdit() {
+    if (!edConfirm) {
+      edConfirm = true;
+      return;
+    }
+    removeTodo(selected, edId);
+    edOpen = false;
   }
 </script>
 
@@ -204,7 +177,12 @@
   {#if selDay && selDay.todos.length}
     <div class="day-todos">
       {#each selDay.todos as td (td.id)}
-        <div class="td"><b class="m-{td.mark ?? 'none'}">{markChar(td.mark)}</b>{td.text}</div>
+        {@const subj = subjectOf(td.subject)}
+        <div class="td">
+          <b class="m-{td.mark ?? 'none'}">{markChar(td.mark)}</b>
+          <span class="td-text">{#if subj}<b class="subj" style:color={subj.color}>[{subj.name}]</b>{/if}{td.text}</span>
+          <button class="del" aria-label="수정" onclick={() => openEdit(td)}><Icon name="edit" size={16} /></button>
+        </div>
       {/each}
     </div>
   {:else if selEvents.length === 0}
@@ -213,55 +191,27 @@
 </section>
 
 <section class="card">
-  <div class="row-between">
-    <span class="bold">이번 주</span>
-    <span class="muted small">{parse(week[0]).getMonth() + 1}.{parse(week[0]).getDate()} – {parse(week[6]).getMonth() + 1}.{parse(week[6]).getDate()}</span>
-  </div>
-  <div class="diary">
-    <div class="dh dl"></div>
-    {#each week as d, i}<div class="dh" class:cur={d === clock.today}>{WD[i]}</div>{/each}
-    <div class="dl">時間</div>
-    {#each week as d}<div class="dc" class:cur={d === clock.today}>{hoursCell(d)}</div>{/each}
-    <div class="dl last">比率</div>
-    {#each week as d}<div class="dc last" class:cur={d === clock.today}>{ratio(d)}</div>{/each}
-  </div>
-  <div class="row-between total">
-    <span>주간 총 집중 시간</span>
-    <b>{Math.floor(weekTotalMin / 60)}시간 {String(weekTotalMin % 60).padStart(2, '0')}분</b>
-  </div>
-</section>
-
-<section class="dday-wrap">
-  <div class="dday" bind:this={scroller} onscroll={onScroll}>
-    {#each app.ddays as dd (dd.id)}
-      <div class="banner" style={bannerStyle(dd)}>
-        <div class="d-big">{dLabel(dd.date)}</div>
-        <div class="d-title">{dd.title}</div>
-        <div class="d-sub">{dSub(dd.date)}</div>
-      </div>
-    {/each}
-    <div class="banner manage">
-      <div class="bold">디데이 관리</div>
-      <div class="manage-list">
-        {#each app.ddays as dd (dd.id)}
-          <div class="m-row">
-            <span class="swatch" style={swatch(dd)}></span>
-            <span class="m-name">{dd.title}</span>
-            <span class="muted small">{dLabel(dd.date)}</span>
-            <button class="del" class:confirm={confirmDd === dd.id} aria-label="{dd.title} 삭제" onclick={() => delDday(dd.id)}>
-              {#if confirmDd === dd.id}삭제{:else}<Icon name="trash" size={16} />{/if}
-            </button>
-          </div>
-        {:else}
-          <p class="empty">아직 디데이가 없어요</p>
-        {/each}
-      </div>
-      <button class="btn dashed wide" onclick={openDday}><Icon name="plus" size={16} />디데이 추가</button>
+  <span class="bold">{viewM + 1}월 통계</span>
+  {#if stats}
+    <div class="tiles">
+      <div class="tile"><div class="k">월 총 집중 시간</div><div class="v">{fmtMinutes(stats.totalMin)}</div></div>
+      <div class="tile"><div class="k">하루 평균</div><div class="v">{fmtMinutes(stats.avgMin)}</div></div>
+      <div class="tile"><div class="k">하루 평균 완수율</div><div class="v">{stats.avgRatio === null ? '-' : `${stats.avgRatio}%`}</div></div>
     </div>
-  </div>
-  <div class="dots" aria-hidden="true">
-    {#each { length: app.ddays.length + 1 } as _, i}<i class:on={i === slide}></i>{/each}
-  </div>
+    <div class="sub-title">과목별 투두 완수 비중</div>
+    {#if stats.shares.length}
+      <div class="sbar">
+        {#each stats.shares as s}<span style:width="{s.pct}%" style:background={s.subj.color}></span>{/each}
+      </div>
+      {#each stats.shares as s}
+        <div class="lg"><i style:background={s.subj.color}></i><span class="n">{s.subj.name}</span><span class="p">{Math.round(s.pct)}%</span></div>
+      {/each}
+    {:else}
+      <p class="empty">과목을 단 할 일을 완료하면 여기에 표시돼요</p>
+    {/if}
+  {:else}
+    <p class="empty">아직 지나지 않은 달이에요</p>
+  {/if}
 </section>
 
 <Modal bind:open={evOpen} title="일정 추가">
@@ -273,22 +223,27 @@
   </form>
 </Modal>
 
-<Modal bind:open={ddOpen} title="디데이 추가">
-  <form class="form" onsubmit={saveDday}>
-    <label>이름<input bind:value={ddTitle} placeholder="예: 시험일" required /></label>
-    <label>날짜<input type="date" bind:value={ddDate} required /></label>
-    <div class="photo-row">
-      {#if ddPhoto}
-        <span class="photo-prev" style="background-image:url('{ddPhoto}')"></span>
-        <button type="button" class="btn ghost" onclick={() => (ddPhoto = null)}>사진 빼기</button>
-      {:else}
-        <button type="button" class="btn ghost" onclick={() => ddFile.click()}><Icon name="image" size={18} />사진 고르기 (선택)</button>
-      {/if}
+<Modal bind:open={edOpen} title="할 일 수정 · {label(selected)}">
+  <form class="form" onsubmit={saveEdit}>
+    <div class="field-label">과목</div>
+    <div class="pills wrap">
+      <button type="button" class="pill" class:on={edSubject === null} onclick={() => (edSubject = null)}>없음</button>
+      {#each app.subjects as s (s.id)}
+        <button type="button" class="pill" class:on={edSubject === s.id} onclick={() => (edSubject = s.id)}>{s.name}</button>
+      {/each}
     </div>
-    <p class="muted small">사진이 없으면 색 그라데이션으로 표시돼요.</p>
-    {#if ddError}<p class="error">{ddError}</p>{/if}
-    <button class="btn accent wide">저장</button>
+    <label>내용<input bind:value={edText} required /></label>
+    <div class="field-label">완수 정도</div>
+    <div class="mark-pick">
+      {#each [['o', '완료'], ['t', '일부 완료'], ['x', '미완료']] as [m, lb]}
+        <button type="button" class="mark big-mark mark-{m}" class:sel={edMark === m} aria-label={lb} aria-pressed={edMark === m} onclick={() => (edMark = edMark === m ? null : m)}>
+          <Icon name={m} size={18} />
+        </button>
+      {/each}
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn ghost danger" class:confirm={edConfirm} onclick={delEdit}>{edConfirm ? '정말 삭제' : '삭제'}</button>
+      <button class="btn accent grow">저장</button>
+    </div>
   </form>
 </Modal>
-
-<input type="file" accept="image/*" hidden bind:this={ddFile} onchange={onDdFile} />

@@ -33,6 +33,17 @@
   {:else if name === 'cal'}
     <rect x="3" y="4.5" width="14" height="12.5" rx="2" />
     <path d="M3 8.5h14M7 2.5v4M13 2.5v4" />
+  {:else if name === 'bars'}
+    <path d="M4.5 16.5V10M10 16.5V4M15.5 16.5V8" stroke-width="2.2" />
+  {:else if name === 'grip'}
+    <circle cx="7.5" cy="5" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12.5" cy="5" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="7.5" cy="10" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12.5" cy="10" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="7.5" cy="15" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12.5" cy="15" r="1.4" fill="currentColor" stroke="none" />
+  {:else if name === 'edit'}
+    <path d="M4 16l.8-3.6L14 3.2a1.5 1.5 0 012.1 0l.7.7a1.5 1.5 0 010 2.1L7.6 15.2z" />
   {:else if name === 'check'}
     <path d="M4.5 10.5l3.5 3.5 7.5-8" stroke-width="2.4" />
   {:else if name === 'close'}

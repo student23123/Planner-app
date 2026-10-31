@@ -31,6 +31,14 @@ export const hoursOf = (count) => {
   return Number.isInteger(h) ? String(h) : h.toFixed(1);
 };
 
+/** a "day" ends at 4 AM: 01:30 on the 1st still counts as the previous day */
+export const DAY_OFFSET = 4 * 60 * 60 * 1000;
+export const logicalDate = (ms) => ymd(new Date(ms - DAY_OFFSET));
+
+export const SUBJECT_COLORS = ['#4A5D8A', '#3F6B4F', '#8A560C', '#7A5B9A', '#9A4B5F', '#2F6F78', '#5E6B2E', '#8A4A2E'];
+
+export const fmtMinutes = (min) => `${Math.floor(min / 60)}시간 ${String(Math.round(min % 60)).padStart(2, '0')}분`;
+
 export const PALETTE = [
   ['#C9D3E6', '#5B6F9A'],
   ['#E9B88A', '#C8553D'],

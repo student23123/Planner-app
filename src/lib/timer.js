@@ -1,5 +1,5 @@
 import { app, FOCUS, BREAK, ensureDay } from './state.svelte.js';
-import { ymd } from './util.js';
+import { logicalDate } from './util.js';
 
 let audio = null;
 
@@ -81,7 +81,7 @@ export function tick(now) {
   while (now >= t.endAt && guard++ < 500) {
     const fresh = now - t.endAt < 5000;
     if (t.phase === 'focus') {
-      ensureDay(ymd(new Date(t.endAt))).focus += 1;
+      ensureDay(logicalDate(t.endAt)).focus += 1;
       if (fresh) beep();
       if (t.focusMode) {
         t.phase = 'break';

@@ -1,21 +1,27 @@
 <script>
   import { onMount } from 'svelte';
   import Daily from './Daily.svelte';
+  import Weekly from './Weekly.svelte';
   import CalendarView from './CalendarView.svelte';
   import Icon from './Icon.svelte';
   import { app, meta, clock, ensureDay, hydrate } from './lib/state.svelte.js';
   import { tick } from './lib/timer.js';
   import { load, save, flush } from './lib/persist.js';
-  import { ymd } from './lib/util.js';
+  import { logicalDate } from './lib/util.js';
 
   let tab = $state('daily');
 
   function refresh() {
     const now = Date.now();
     clock.now = now;
-    const today = ymd(new Date(now));
+    const today = logicalDate(now);
     if (today !== clock.today) clock.today = today;
     if (meta.ready) tick(now);
+  }
+
+  function go(t) {
+    tab = t;
+    window.scrollTo(0, 0);
   }
 
   onMount(() => {
@@ -51,6 +57,8 @@
   {#if meta.ready}
     {#if tab === 'daily'}
       <Daily />
+    {:else if tab === 'weekly'}
+      <Weekly />
     {:else}
       <CalendarView />
     {/if}
@@ -58,10 +66,13 @@
 </main>
 
 <nav class="tabbar">
-  <button class="tab" class:active={tab === 'daily'} onclick={() => (tab = 'daily')}>
+  <button class="tab" class:active={tab === 'daily'} onclick={() => go('daily')}>
     <Icon name="clock" size={22} />데일리
   </button>
-  <button class="tab" class:active={tab === 'calendar'} onclick={() => (tab = 'calendar')}>
+  <button class="tab" class:active={tab === 'weekly'} onclick={() => go('weekly')}>
+    <Icon name="bars" size={22} />위클리
+  </button>
+  <button class="tab" class:active={tab === 'calendar'} onclick={() => go('calendar')}>
     <Icon name="cal" size={22} />캘린더
   </button>
 </nav>

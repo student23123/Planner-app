@@ -2,8 +2,8 @@
   import Icon from './Icon.svelte';
   import Modal from './Modal.svelte';
   import {
-    app, clock, dayOf, addTodo, removeTodo, setMark, setCarry,
-    addStamp, setStamp, removeStamp, FOCUS, BREAK,
+    app, clock, dayOf, addTodo, removeTodo, setMark, setCarry, moveTodo,
+    addStamp, setStamp, removeStamp, subjectOf, addSubject, removeSubject, FOCUS, BREAK,
   } from './lib/state.svelte.js';
   import { start, stop, togglePause, toggleFocusMode, remainingMs } from './lib/timer.js';
   import { readImage } from './lib/image.js';
@@ -28,12 +28,17 @@
 
   let stamp = $derived(day.stamp ? app.stamps.find((s) => s.id === day.stamp) : null);
   let stampSize = $derived(stamp ? fit(stamp.w, stamp.h) : null);
+  let selSubject = $derived(subjectOf(app.prefs.lastSubject));
 
   let newText = $state('');
   let stampOpen = $state(false);
+  let subjOpen = $state(false);
+  let newSubject = $state('');
   let confirmDel = $state(null);
   let errorMsg = $state('');
+  let dragId = $state(null);
   let fileInput;
+  let listEl;
 
   function fit(w, h) {
     const s = Math.sqrt(32000 / (w * h));
@@ -52,10 +57,56 @@
     e.preventDefault();
     const v = newText.trim();
     if (!v) return;
-    addTodo(v);
+    addTodo(v, selSubject?.id ?? null);
     newText = '';
   }
 
+  function chooseSubject(id) {
+    app.prefs.lastSubject = app.prefs.lastSubject === id ? null : id;
+  }
+
+  function submitSubject(e) {
+    e.preventDefault();
+    const v = newSubject.trim();
+    if (!v) return;
+    const s = addSubject(v);
+    app.prefs.lastSubject = s.id;
+    newSubject = '';
+  }
+
+  function delSubject(id) {
+    if (confirmDel === id) {
+      removeSubject(id);
+      confirmDel = null;
+    } else confirmDel = id;
+  }
+
+  /* ----- drag to reorder ----- */
+  function gripDown(e, id) {
+    e.preventDefault();
+    dragId = id;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function gripMove(e) {
+    if (!dragId || !listEl) return;
+    const rows = [...listEl.querySelectorAll(':scope > .todo')];
+    let target = rows.length;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i].getBoundingClientRect();
+      if (e.clientY < r.top + r.height / 2) {
+        target = i;
+        break;
+      }
+    }
+    moveTodo(clock.today, dragId, target);
+  }
+
+  function gripUp() {
+    dragId = null;
+  }
+
+  /* ----- stamps ----- */
   async function onFile(e) {
     const f = e.currentTarget.files?.[0];
     e.currentTarget.value = '';
@@ -150,38 +201,59 @@
     <p class="empty">할 일을 추가해 보세요</p>
   {/if}
 
-  {#each day.todos as todo (todo.id)}
-    <div class="todo">
-      <div class="todo-row">
-        <span class="todo-text">{todo.text}</span>
-        <span class="marks">
-          {#each MARKS as { m, label }}
-            <button
-              class="mark mark-{m}"
-              class:sel={todo.mark === m}
-              aria-label={label}
-              aria-pressed={todo.mark === m}
-              onclick={() => setMark(clock.today, todo, m)}
-            >
-              <Icon name={m} size={15} />
-            </button>
-          {/each}
-        </span>
-        <button class="del" aria-label="삭제" onclick={() => removeTodo(clock.today, todo.id)}>
-          <Icon name="trash" size={18} />
-        </button>
+  <div bind:this={listEl}>
+    {#each day.todos as todo (todo.id)}
+      {@const subj = subjectOf(todo.subject)}
+      <div class="todo" class:dragging={dragId === todo.id}>
+        <div class="todo-row">
+          <button
+            class="grip"
+            aria-label="순서 이동"
+            onpointerdown={(e) => gripDown(e, todo.id)}
+            onpointermove={gripMove}
+            onpointerup={gripUp}
+            onpointercancel={gripUp}
+          >
+            <Icon name="grip" size={18} />
+          </button>
+          <span class="todo-text">
+            {#if subj}<b class="subj" style:color={subj.color}>[{subj.name}]</b>{/if}{todo.text}
+          </span>
+          <span class="marks">
+            {#each MARKS as { m, label }}
+              <button
+                class="mark mark-{m}"
+                class:sel={todo.mark === m}
+                aria-label={label}
+                aria-pressed={todo.mark === m}
+                onclick={() => setMark(clock.today, todo, m)}
+              >
+                <Icon name={m} size={15} />
+              </button>
+            {/each}
+          </span>
+          <button class="del" aria-label="삭제" onclick={() => removeTodo(clock.today, todo.id)}>
+            <Icon name="trash" size={18} />
+          </button>
+        </div>
+        {#if todo.mark === 'x' || todo.mark === 't'}
+          <label class="carry">
+            <input type="checkbox" checked={todo.carry} onchange={(e) => setCarry(clock.today, todo, e.currentTarget.checked)} />
+            내일 투두에 띄우기
+          </label>
+        {/if}
       </div>
-      {#if todo.mark === 'x' || todo.mark === 't'}
-        <label class="carry">
-          <input type="checkbox" checked={todo.carry} onchange={(e) => setCarry(clock.today, todo, e.currentTarget.checked)} />
-          내일 투두에 띄우기
-        </label>
-      {/if}
-    </div>
-  {/each}
+    {/each}
+  </div>
 
+  <div class="pills">
+    {#each app.subjects as s (s.id)}
+      <button class="pill" class:on={app.prefs.lastSubject === s.id} aria-pressed={app.prefs.lastSubject === s.id} onclick={() => chooseSubject(s.id)}>{s.name}</button>
+    {/each}
+    <button class="pill dashed" onclick={() => { confirmDel = null; subjOpen = true; }}><Icon name="plus" size={12} />과목</button>
+  </div>
   <form class="add" onsubmit={submit}>
-    <input placeholder="할 일 추가" aria-label="할 일 추가" bind:value={newText} enterkeyhint="done" />
+    <input placeholder={selSubject ? `[${selSubject.name}] 할 일 추가` : '할 일 추가'} aria-label="할 일 추가" bind:value={newText} enterkeyhint="done" />
     <button class="add-btn" aria-label="추가"><Icon name="plus" /></button>
   </form>
 </section>
@@ -216,6 +288,24 @@
   {#if day.stamp}
     <button class="btn ghost wide" onclick={() => pick(null)}>오늘 스탬프 지우기</button>
   {/if}
+</Modal>
+
+<Modal bind:open={subjOpen} title="과목 관리">
+  {#each app.subjects as s (s.id)}
+    <div class="m-row">
+      <span class="swatch" style:background={s.color}></span>
+      <span class="m-name">{s.name}</span>
+      <button class="del" class:confirm={confirmDel === s.id} aria-label="{s.name} 삭제" onclick={() => delSubject(s.id)}>
+        {#if confirmDel === s.id}삭제{:else}<Icon name="trash" size={16} />{/if}
+      </button>
+    </div>
+  {:else}
+    <p class="empty">아직 과목이 없어요</p>
+  {/each}
+  <form class="add" onsubmit={submitSubject}>
+    <input placeholder="새 과목 이름" aria-label="새 과목 이름" bind:value={newSubject} enterkeyhint="done" />
+    <button class="add-btn" aria-label="과목 추가"><Icon name="plus" /></button>
+  </form>
 </Modal>
 
 <input type="file" accept="image/*" hidden bind:this={fileInput} onchange={onFile} />
