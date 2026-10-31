@@ -39,6 +39,17 @@
   let dragId = $state(null);
   let fileInput;
   let listEl;
+  let pillScroll;
+
+  $effect(() => {
+    app.prefs.lastSubject;
+    const el = pillScroll?.querySelector('.pill.on');
+    if (!el) return;
+    const left = el.offsetLeft - pillScroll.offsetLeft;
+    if (left < pillScroll.scrollLeft || left + el.offsetWidth > pillScroll.scrollLeft + pillScroll.clientWidth - 28) {
+      pillScroll.scrollTo({ left: Math.max(0, left - 8), behavior: 'smooth' });
+    }
+  });
 
   function fit(w, h) {
     const s = Math.sqrt(32000 / (w * h));
@@ -246,11 +257,13 @@
     {/each}
   </div>
 
-  <div class="pills">
-    {#each app.subjects as s (s.id)}
-      <button class="pill" class:on={app.prefs.lastSubject === s.id} aria-pressed={app.prefs.lastSubject === s.id} onclick={() => chooseSubject(s.id)}>{s.name}</button>
-    {/each}
-    <button class="pill dashed" onclick={() => { confirmDel = null; subjOpen = true; }}><Icon name="plus" size={12} />과목</button>
+  <div class="pill-bar">
+    <button class="pill dashed" aria-label="과목 관리" onclick={() => { confirmDel = null; subjOpen = true; }}><Icon name="plus" size={12} />과목</button>
+    <div class="pill-scroll" bind:this={pillScroll}>
+      {#each app.subjects as s (s.id)}
+        <button class="pill" class:on={app.prefs.lastSubject === s.id} aria-pressed={app.prefs.lastSubject === s.id} onclick={() => chooseSubject(s.id)}>{s.name}</button>
+      {/each}
+    </div>
   </div>
   <form class="add" onsubmit={submit}>
     <input placeholder={selSubject ? `[${selSubject.name}] 할 일 추가` : '할 일 추가'} aria-label="할 일 추가" bind:value={newText} enterkeyhint="done" />

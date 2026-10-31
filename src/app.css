@@ -121,7 +121,14 @@ h2 { margin: 0; font-size: 16px; }
 .todo.dragging .grip { color: var(--ink); }
 .subj { font-weight: 700; margin-right: 4px; }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.pills::-webkit-scrollbar { display: none; }
+.pill-bar { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+.pill-scroll {
+  flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  overscroll-behavior-x: contain; padding-right: 28px;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+}
+.pill-scroll::-webkit-scrollbar { display: none; }
 .pills.wrap { flex-wrap: wrap; margin-top: 0; overflow: visible; }
 .pill {
   height: 34px; padding: 0 13px; border-radius: 17px; border: 1.5px solid var(--border); flex: none;
