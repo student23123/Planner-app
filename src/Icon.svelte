@@ -44,6 +44,10 @@
     <circle cx="12.5" cy="15" r="1.4" fill="currentColor" stroke="none" />
   {:else if name === 'edit'}
     <path d="M4 16l.8-3.6L14 3.2a1.5 1.5 0 012.1 0l.7.7a1.5 1.5 0 010 2.1L7.6 15.2z" />
+  {:else if name === 'up'}
+    <path d="M10 16V4M5 9l5-5 5 5" />
+  {:else if name === 'down'}
+    <path d="M10 4v12M5 11l5 5 5-5" />
   {:else if name === 'check'}
     <path d="M4.5 10.5l3.5 3.5 7.5-8" stroke-width="2.4" />
   {:else if name === 'close'}

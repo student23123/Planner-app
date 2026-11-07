@@ -113,6 +113,13 @@ export function setMark(date, todo, mark) {
   applyMark(date, todo, todo.mark === mark ? null : mark);
 }
 
+const CYCLE = { null: 'o', o: 't', t: 'x', x: null };
+
+/** ⏭ on the wheel: none → O → △ → X → none */
+export function cycleMark(date, todo) {
+  applyMark(date, todo, CYCLE[todo.mark ?? 'null'] ?? null);
+}
+
 export function updateTodo(date, id, { text, subject, mark }) {
   const todo = app.days[date]?.todos.find((t) => t.id === id);
   if (!todo) return;
