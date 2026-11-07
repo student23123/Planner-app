@@ -30,7 +30,7 @@
   }
 
   function bannerStyle(dd) {
-    const shade = 'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.62))';
+    const shade = 'linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.42))';
     if (dd.photo) return `background-image:${shade},url("${dd.photo}");background-size:cover;background-position:center`;
     const [a, b] = PALETTE[dd.color % PALETTE.length];
     return `background-image:${shade},linear-gradient(135deg,${a},${b})`;

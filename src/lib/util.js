@@ -35,15 +35,16 @@ export const hoursOf = (count) => {
 export const DAY_OFFSET = 4 * 60 * 60 * 1000;
 export const logicalDate = (ms) => ymd(new Date(ms - DAY_OFFSET));
 
-export const SUBJECT_COLORS = ['#4A5D8A', '#3F6B4F', '#8A560C', '#7A5B9A', '#9A4B5F', '#2F6F78', '#5E6B2E', '#8A4A2E'];
+export const OLD_SUBJECT_COLORS = ['#4A5D8A', '#3F6B4F', '#8A560C', '#7A5B9A', '#9A4B5F', '#2F6F78', '#5E6B2E', '#8A4A2E'];
+export const SUBJECT_COLORS = ['#7088B5', '#6E9C7C', '#BF9152', '#9C88BF', '#C27F93', '#62A0A8', '#93A063', '#BC8768'];
 
 export const fmtMinutes = (min) => `${Math.floor(min / 60)}시간 ${String(Math.round(min % 60)).padStart(2, '0')}분`;
 
 export const PALETTE = [
-  ['#C9D3E6', '#5B6F9A'],
-  ['#E9B88A', '#C8553D'],
-  ['#BFD4C2', '#3F6B4F'],
-  ['#F0D9A8', '#A86A12'],
-  ['#D9C6E6', '#7A5B9A'],
-  ['#E6C6CF', '#9A5B6F'],
+  ['#D9E0EE', '#97A6C6'],
+  ['#F3D9C6', '#D7A38F'],
+  ['#D6E4D9', '#94B59E'],
+  ['#F3E6C9', '#D1AE78'],
+  ['#E5DCEE', '#AE9BC4'],
+  ['#F0DDE3', '#C49CA8'],
 ];

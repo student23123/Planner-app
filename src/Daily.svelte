@@ -158,7 +158,7 @@
           {:else if t.status === 'paused'}
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1" width="2.5" height="8" fill="currentColor" /><rect x="6" y="1" width="2.5" height="8" fill="currentColor" /></svg>
           {/if}
-          <svg width="18" height="10" viewBox="0 0 18 10" aria-hidden="true"><rect x="0.5" y="0.5" width="15" height="9" rx="1.5" fill="none" stroke="currentColor" /><rect x="2" y="2" width="9" height="6" fill="#5C9E58" /><rect x="16" y="3" width="1.5" height="4" fill="currentColor" /></svg>
+          <svg width="18" height="10" viewBox="0 0 18 10" aria-hidden="true"><rect x="0.5" y="0.5" width="15" height="9" rx="1.5" fill="none" stroke="currentColor" /><rect x="2" y="2" width="9" height="6" fill="#8DB88A" /><rect x="16" y="3" width="1.5" height="4" fill="currentColor" /></svg>
         </span>
       </div>
 

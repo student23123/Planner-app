@@ -1,4 +1,4 @@
-import { uid, addDays, logicalDate, PALETTE, SUBJECT_COLORS } from './util.js';
+import { uid, addDays, logicalDate, PALETTE, SUBJECT_COLORS, OLD_SUBJECT_COLORS } from './util.js';
 
 export const FOCUS = 25 * 60 * 1000;
 export const BREAK = 5 * 60 * 1000;
@@ -33,6 +33,11 @@ export function hydrate(result) {
   } else if (result.data) {
     for (const k of Object.keys(app)) {
       if (result.data[k] !== undefined) app[k] = result.data[k];
+    }
+    // softer palette: move subjects that still use the old saturated colors
+    for (const sub of app.subjects) {
+      const i = OLD_SUBJECT_COLORS.indexOf(sub.color);
+      if (i >= 0) sub.color = SUBJECT_COLORS[i];
     }
   }
   meta.ready = true;
